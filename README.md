@@ -39,7 +39,7 @@ README with everything specific to that project.
 
 A **conceptual, end-to-end design** for a data pipeline for Beejan Technologies, a
 telecom company whose customers raise thousands of complaints a day across
-several channels — social media, call-centre logs, SMS, and website forms — each
+several channels, social media, call-centre logs, SMS, and website forms, each
 in its own format. The project is a **blueprint, not an implementation**: it
 settles the concepts and the flow of data so the pipeline can later be built on a
 clear foundation, and deliberately names no specific technologies.
