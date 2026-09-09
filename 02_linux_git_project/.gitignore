@@ -1,0 +1,15 @@
+# .gitignore for the Linux & Git ETL project.
+# Keep the data-layer FOLDERS in the repo (via a .gitkeep placeholder) but
+# ignore the data files the scripts write into them.
+etl_pipeline/raw/*
+!etl_pipeline/raw/.gitkeep
+etl_pipeline/Transformed/*
+!etl_pipeline/Transformed/.gitkeep
+etl_pipeline/Gold/*
+!etl_pipeline/Gold/.gitkeep
+moving_files/json_and_CSV/*
+!moving_files/json_and_CSV/.gitkeep
+moving_files/test
+
+# Cron log produced by etl.sh
+etl_pipeline/etl.log

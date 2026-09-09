@@ -1,0 +1,11 @@
+# Root .gitignore for the CDE_Bootcamp_3 monorepo.
+# Only universal rules live here; 
+# Each project keeps its own .gitignore for its project-specific generated files.
+
+# OS / editor noise
+.DS_Store
+*.swp
+.vscode/
+
+# Secrets / local environment 
+.env
