@@ -1,7 +1,5 @@
-"""Warehouse operations behind a small interface.
-
-The loader talks only to `Warehouse`, so the idempotency logic has no Spark dependency and can be
-unit-tested with an in-memory fake. `SparkWarehouse` is the Databricks implementation.
+"""
+Warehouse operations behind a small interface.
 """
 from __future__ import annotations
 

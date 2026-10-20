@@ -1,15 +1,5 @@
-"""Idempotent Drive -> bronze loader.
-
-Idempotency: the content-hash manifest (`<catalog>._meta.ingestion_manifest`) records the MD5 of
-the last successful load of each source file. On every run the loader compares each Drive file's
-server-side MD5 to the manifest and:
-
-    * MD5 unchanged AND bronze table present -> SKIP (no download, no load, no write)
-    * MD5 changed / new file / table missing -> download, atomically replace the bronze table, update the manifest
-
-So running the pipeline any number of times with the same Drive contents converges to the same
-bronze state and does no work after the first run; a single changed file reloads only that one table.
-The decision is a pure function (`plan`) so it can be tested without a warehouse.
+"""
+Idempotent Drive -> bronze loader.
 """
 from __future__ import annotations
 

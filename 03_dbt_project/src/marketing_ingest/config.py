@@ -1,7 +1,5 @@
-"""Ingestion configuration.
-
-Nothing identifying (Drive folder ids/urls, table names) lives in the Python source; it is read
-from a YAML file or, in production, from a Databricks secret. See config/ingestion.yaml.
+"""
+Ingestion configuration.
 """
 from __future__ import annotations
 

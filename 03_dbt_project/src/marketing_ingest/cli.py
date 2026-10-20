@@ -1,13 +1,5 @@
-"""Entry point for the idempotent Drive -> bronze ingestion.
-
-Runs on a Databricks runtime, where `spark` and `dbutils` are provided. Use it from a Databricks
-notebook / job task:
-
-    from marketing_ingest.cli import main
-    main(config_path="config/ingestion.yaml")
-
-or as the console script `ingest-bronze` on a cluster that has `spark`/`dbutils` in scope.
-Config can also come from a Databricks secret (set config_source="secret").
+"""
+Entry point for the idempotent Drive -> bronze ingestion.
 """
 from __future__ import annotations
 

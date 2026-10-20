@@ -1,9 +1,5 @@
-"""Google Drive access.
-
-The folders are shared "Anyone with the link", so an API key (restricted to the Drive API) is
-enough and is what `auth_mode: api_key` uses. `auth_mode: service_account` is supported for private
-folders. Either way the Drive API gives each file's server-side MD5 (`md5Checksum`) *without*
-downloading it, which is what lets the loader skip unchanged files.
+"""
+Google Drive access.
 """
 from __future__ import annotations
 

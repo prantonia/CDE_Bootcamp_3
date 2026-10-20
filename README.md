@@ -31,7 +31,7 @@ CDE_Bootcamp_3/
 │
 ├── .github/workflows/               # CI/CD for 03_dbt_project (dbt CI, production deploy, cleanup)
 │
-└── README.md                        # this file
+└── README.md                        
 ```
 
 Each numbered folder is a self-contained project. Open a folder to find its own

@@ -8,11 +8,10 @@ Drive (public folders) ──► bronze (Unity Catalog) ──► dbt silver/gol
         Step 7                   Step 7                     Step 8
 ```
 
-Legend: 🧑‍💼 = done once by an admin · 🤖 = runs every pipeline execution.
 
 ---
 
-## Step 0 — Prerequisites 🧑‍💼
+## Step 0 — Prerequisites 
 
 - A Databricks workspace with **Unity Catalog** enabled and a **SQL warehouse** (or an all-purpose cluster) running.
 - Permission to create **catalogs** and **service principals** (metastore admin / account admin), or someone who can.
@@ -26,7 +25,7 @@ Grab two connection values now — you'll reuse them everywhere:
 
 ---
 
-## Step 1 — Create service principals 🧑‍💼
+## Step 1 — Create service principals 
 
 Settings → **Identity and access** → **Service principals** → *Add*. Create (at least) two:
 
@@ -46,7 +45,7 @@ add each service principal with **Can use**. (This is a workspace permission, no
 
 ---
 
-## Step 2 — Create catalogs, schemas, and grants 🧑‍💼
+## Step 2 — Create catalogs, schemas, and grants 
 
 Open `databricks/01_unity_catalog_setup.sql`. Replace every placeholder with real values — **do not keep the
 example IDs**:
@@ -70,7 +69,7 @@ LIST '/Volumes/bronze_production/landing/raw_files';   -- volume exists (may be 
 
 ---
 
-## Step 3 — Store the Google Drive key as a Databricks secret 🧑‍💼
+## Step 3 — Store the Google Drive key as a Databricks secret 
 
 The folders are public, so a **Drive API key** is enough.
 
@@ -86,7 +85,7 @@ and set `auth_mode: service_account` in `config/ingestion.yaml`.)
 
 ---
 
-## Step 4 — Put the code in the workspace 🧑‍💼
+## Step 4 — Put the code in the workspace 
 
 Workspace → **Create → Git folder** → paste the repository URL (`https://github.com/prantonia/CDE_Bootcamp_3`) → create.
 The project is in the `03_dbt_project/` subfolder; it contains the `marketing_ingest` package,
@@ -98,7 +97,7 @@ api_key` should match what you created. Nothing secret lives in this file.
 
 ---
 
-## Step 5 — First ingestion: Drive → bronze 🤖
+## Step 5 — First ingestion: Drive → bronze 
 
 Open `03_dbt_project/databricks/notebooks/ingest_bronze.py` in the workspace, attach it to a cluster (or serverless), and
 **Run all**. It will:
@@ -123,7 +122,7 @@ SELECT * FROM bronze_production._meta.ingestion_manifest;       -- 9 rows, md5 +
 
 ---
 
-## Step 6 — Configure credentials for dbt 🧑‍💼
+## Step 6 — Configure credentials for dbt 
 
 The dbt `production` target authenticates as the **production service principal** (OAuth — no PAT).
 `dbt/profiles.yml` reads these from the environment:
@@ -153,7 +152,7 @@ export DBT_TARGET=production
 
 ---
 
-## Step 7 — Transform: build silver + gold with dbt 🤖
+## Step 7 — Transform: build silver + gold with dbt 
 
 **If you chose 6b (laptop):**
 ```bash
@@ -179,7 +178,7 @@ FROM gold_production.marketing.rpt_marketing_platform_monthly GROUP BY platform;
 
 ---
 
-## Step 8 — Automate (the steady state) 🤖
+## Step 8 — Automate (the steady state) 
 
 **Ingestion → a Databricks Job.** Workflows → *Create job* → task type **Notebook** →
 `03_dbt_project/databricks/notebooks/ingest_bronze.py` → **Run as** `sp-marketing-ingest` → add a schedule (e.g. daily 05:30).
@@ -204,20 +203,6 @@ Order them so ingestion (05:30) finishes before the production dbt run (06:00).
 
 ---
 
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| `PERMISSION_DENIED` creating a schema/table in dbt | the SP is missing a grant from Step 2, or **Can use** on the warehouse (Step 1). Re-run the grants SQL. |
-| Ingestion: `Expected files not found in Drive` | folder not shared publicly, wrong folder id in `config/ingestion.yaml`, or a renamed file. |
-| Ingestion: Drive `403` / `API key not valid` | the key isn't restricted to the Drive API, or the Drive API isn't enabled on the project (Step 3). |
-| `dbt debug` fails to connect | check host/http-path, and that the **SQL warehouse is running** and the SP has **Can use**. |
-| Everything reloads every run | the `_meta.ingestion_manifest` table was dropped, or the Drive files genuinely changed (new MD5). |
-| Need to rebuild the fact from scratch | `uv run dbt build --select fct_marketing_ad_performance_daily --full-refresh`. |
-| Replace the placeholder USD→EUR rate | edit `dbt/seeds/fx_rates_to_eur.csv`, then `uv run dbt seed`. |
-
-
----
 
 ## Using the development environment
 

@@ -1,6 +1,7 @@
 # Ingestion config - the only place source identifiers and the file->table map live.
 # For public "Anyone with the link" folders, auth_mode: api_key (a Drive-API-restricted key in the
-# secret scope below). For private folders, auth_mode: service_account.
+# secret scope below). 
+# For private folders, auth_mode: service_account.
 # To keep these out of version control, put this same YAML/JSON in a Databricks secret
 # (scope `gdrive`, key `ingestion_config`) and run with config_source="secret".
 

@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
-"""Generate docs/DATA_DICTIONARY.md from dbt's manifest.json + catalog.json.
-
-The dictionary is built from the same descriptions that dbt docs shows, so it cannot drift from the
-models: change a description in a .yml file, regenerate, done.
-
-    cd marketing_platform
-    dbt docs generate          # writes target/manifest.json and target/catalog.json
-    python ../scripts/generate_data_dictionary.py
+"""
+Generate docs/DATA_DICTIONARY.md from dbt's manifest.json + catalog.json.
 """
 import json
 import sys

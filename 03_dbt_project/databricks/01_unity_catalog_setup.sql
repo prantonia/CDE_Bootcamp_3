@@ -1,4 +1,3 @@
--- =====================================================================================
 -- Unity Catalog setup: catalogs, schemas and least-privilege grants.
 --
 -- Three environments: CI (ci_development), development (dev_sandbox) and production (*_production).
@@ -20,7 +19,6 @@
 --     from "transform it": the dbt principals can only SELECT bronze, so a transformation job can never
 --     alter or overwrite raw data.
 --   * No CREATE CATALOG on the metastore: pipelines never create catalogs; an admin does, here.
--- =====================================================================================
 
 -- ---------- 1. Catalogs ------------------------------------------------------------
 CREATE CATALOG IF NOT EXISTS bronze_production COMMENT 'Raw ads data exactly as extracted (all strings)';
