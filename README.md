@@ -75,7 +75,7 @@ a cron job for daily scheduling, and the project README documenting how it was
 built. See the [project README](./02_linux_git_project/README.md) for the
 step-by-step walkthrough.
 
-### 03. Marketing Data Platform with Databricks & dbt
+### 03. dbt Project
 
 **Folder:** [`03_dbt_project/`](./03_dbt_project/)
 
