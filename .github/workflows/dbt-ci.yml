@@ -11,6 +11,10 @@ on:
       - "03_dbt_project/**"
       - ".github/workflows/dbt-*.yml"
 
+permissions:
+  contents: read
+  actions: read   # the reusable build downloads the production manifest
+
 concurrency:
   group: dbt-ci-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -55,3 +59,4 @@ jobs:
       mode: slim
       schema: PR_${{ github.event.pull_request.number }}
       run_elementary_report: false
+      

@@ -20,6 +20,10 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+  actions: read   # the reusable build downloads the previous production manifest
+
 concurrency:
   group: dbt-deploy-production
   cancel-in-progress: false
@@ -34,3 +38,4 @@ jobs:
       mode: full
       full_refresh: ${{ inputs.full_refresh == true }}
       publish_manifest: true
+      

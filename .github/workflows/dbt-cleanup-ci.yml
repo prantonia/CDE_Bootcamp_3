@@ -8,6 +8,9 @@ on:
       - "03_dbt_project/**"
       - ".github/workflows/dbt-*.yml"
 
+permissions:
+  contents: read
+
 jobs:
   drop-schema:
     runs-on: ubuntu-latest
@@ -36,3 +39,4 @@ jobs:
       - name: Drop the PR schema
         run: |
           uv run dbt run-operation drop_ci_schema --args "{schema_name: $DEV_SCHEMA}"
+          
