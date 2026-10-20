@@ -1,0 +1,36 @@
+# Production deploy for 03_dbt_project, as the production Databricks service principal.
+#   push to main      : incremental build of the whole project (only when the project changed)
+#   schedule (daily)  : picks up new data
+#   workflow_dispatch : manual, optional --full-refresh
+# A successful run publishes the manifest that CI compares against.
+name: dbt Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "03_dbt_project/**"
+      - ".github/workflows/dbt-*.yml"
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: Rebuild incremental models from scratch
+        type: boolean
+        default: false
+
+concurrency:
+  group: dbt-deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/dbt-reusable.yml
+    secrets: inherit
+    with:
+      target: production
+      environment: production
+      mode: full
+      full_refresh: ${{ inputs.full_refresh == true }}
+      publish_manifest: true

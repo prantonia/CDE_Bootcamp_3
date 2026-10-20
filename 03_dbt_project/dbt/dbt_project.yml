@@ -1,0 +1,50 @@
+name: marketing_platform
+version: "1.0.0"
+config-version: 2
+profile: marketing_platform
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # Catalog that holds the raw (bronze) tables. Raw data only exists in one place, so every
+  # environment (dev, ci, production) reads from it; only the build outputs differ.
+  bronze_catalog: bronze_production
+  # Facts are re-merged for this many days behind the newest loaded date, because ad platforms
+  # restate recent days (late conversions, spend corrections, ...).
+  incremental_lookback_days: 7
+
+seeds:
+  marketing_platform:
+    +database: silver
+    +schema: reference
+    fx_rates_to_eur:
+      +column_types:
+        rate_to_eur: decimal(18,6)
+
+models:
+  marketing_platform:
+    staging:
+      # 1:1 with source tables, cheap renames/casts only -> views: no storage, always fresh.
+      +materialized: view
+      +database: silver
+      +schema: staging
+    intermediate:
+      # Reusable join/union logic. Individual models override (ephemeral / view).
+      +materialized: ephemeral
+      +database: silver
+      +schema: preparation
+    marts:
+      # Consumed by analysts / BI / AI agents -> physical tables.
+      +materialized: table
+      +database: gold
+      +schema: marketing
+
+  # Elementary observability tables live next to the silver layer.
+  elementary:
+    +database: silver
+    +schema: elementary

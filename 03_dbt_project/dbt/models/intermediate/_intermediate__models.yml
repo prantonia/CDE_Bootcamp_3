@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: int_facebook_ads__performance
+    description: >
+      Facebook daily ad stats enriched with ad, ad group, campaign and account attributes.
+      **Grain: one row per ad per day.** Ephemeral (inlined into `int_marketing_ads`), so it has no
+      table in the warehouse; its integrity is covered by the tests on `int_marketing_ads`.
+
+  - name: int_snapchat_ads__performance
+    description: >
+      Snapchat daily ad stats enriched with ad, ad group and campaign attributes.
+      **Grain: one row per ad per day per country.** Ephemeral (inlined into `int_marketing_ads`).
+
+  - name: int_marketing_ads
+    description: >
+      Facebook and Snapchat on one schema. **Grain: one row per platform x ad x report date x country**
+      (`performance_key`). This is where platform differences are normalized: shared column names,
+      platform-scoped surrogate keys, explicit `UNSPECIFIED` country for Facebook, and EUR conversion.
+      A uniqueness test on `performance_key` here catches join fan-out before it reaches the marts.
+    columns:
+      - name: performance_key
+        description: Surrogate key of platform + source_ad_id + report_date + country_code.
+        data_tests:
+          - unique
+          - not_null
+      - name: platform
+        description: Advertising platform.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [facebook, snapchat]

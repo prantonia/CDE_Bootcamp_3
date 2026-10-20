@@ -1,0 +1,38 @@
+# Drops the PR's disposable schema (ci_development.PR_<n>) when the PR closes.
+name: dbt Cleanup CI schema
+
+on:
+  pull_request:
+    types: [closed]
+    paths:
+      - "03_dbt_project/**"
+      - ".github/workflows/dbt-*.yml"
+
+jobs:
+  drop-schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ci
+    defaults:
+      run:
+        working-directory: 03_dbt_project
+    env:
+      DBT_TARGET: ci
+      DBT_PROJECT_DIR: dbt
+      DBT_PROFILES_DIR: dbt
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
+      DBX_ID_APPLICATION_ID: ${{ secrets.DBX_ID_APPLICATION_ID }}
+      DBX_SECRET: ${{ secrets.DBX_SECRET }}
+      DEV_SCHEMA: PR_${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: 03_dbt_project/uv.lock
+      - run: uv sync --frozen --no-group dev
+      - run: uv run dbt deps
+      - name: Drop the PR schema
+        run: |
+          uv run dbt run-operation drop_ci_schema --args "{schema_name: $DEV_SCHEMA}"

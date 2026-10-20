@@ -1,0 +1,57 @@
+# Pull-request validation for 03_dbt_project (uv-managed). Nothing here touches production objects.
+#   static-checks : parse + sqlfluff lint + unit tests (no warehouse, no secrets)
+#   build         : slim dbt build of changed models into ci_development.PR_<n> as the CI service principal
+name: dbt CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "03_dbt_project/**"
+      - ".github/workflows/dbt-*.yml"
+
+concurrency:
+  group: dbt-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: 03_dbt_project
+    env:
+      DBT_PROJECT_DIR: dbt
+      DBT_PROFILES_DIR: dbt
+      DBT_TARGET: ci
+      DATABRICKS_HOST: parse-only
+      DATABRICKS_HTTP_PATH: parse-only
+      DBX_ID_APPLICATION_ID: parse-only
+      DBX_SECRET: parse-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: 03_dbt_project/uv.lock
+      - run: uv sync --frozen --group dev
+      - name: Unit tests (ingestion idempotency)
+        run: uv run pytest -q
+      - run: uv run dbt deps
+      - name: Parse project (validates SQL, Jinja, YAML, refs, tests)
+        run: uv run dbt parse
+      - name: Lint SQL
+        run: uv run sqlfluff lint dbt/models --disable-progress-bar
+
+  build:
+    needs: static-checks
+    uses: ./.github/workflows/dbt-reusable.yml
+    secrets: inherit
+    with:
+      target: ci
+      environment: ci
+      mode: slim
+      schema: PR_${{ github.event.pull_request.number }}
+      run_elementary_report: false

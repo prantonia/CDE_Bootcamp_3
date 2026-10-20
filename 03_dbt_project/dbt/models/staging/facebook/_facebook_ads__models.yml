@@ -1,0 +1,141 @@
+version: 2
+
+models:
+  - name: stg_facebook_ads__ad_stats
+    description: >
+      Typed daily Facebook ad performance. **Grain: one row per ad per day (`ad_id`, `report_date`).**
+      Spend is in the owning account's currency. Impressions/clicks that the platform marked 'null'
+      are NULL here (unknown), not 0.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [ad_id, report_date]
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "clicks is null or impressions is null or clicks <= impressions"
+    columns:
+      - name: ad_id
+        description: Facebook ad id.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_facebook_ads__ads')
+                field: ad_id
+      - name: account_id
+        description: Facebook ad account that owns the ad (carries the currency).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_facebook_ads__accounts')
+                field: account_id
+      - name: report_date
+        description: Date the performance relates to.
+        data_tests:
+          - not_null
+      - name: spend
+        description: Spend in the account currency. Never negative.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: impressions
+        description: Impressions served. NULL when not reported.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: clicks
+        description: Clicks. NULL when not reported.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+
+  - name: stg_facebook_ads__ads
+    description: "Facebook ads, latest version per ad. **Grain: one row per `ad_id`.**"
+    columns:
+      - name: ad_id
+        description: Facebook ad id.
+        data_tests:
+          - unique
+          - not_null
+      - name: campaign_id
+        description: Campaign the ad belongs to.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_facebook_ads__campaigns')
+                field: campaign_id
+      - name: ad_group_id
+        description: Ad group (ad set) the ad belongs to.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_facebook_ads__ad_groups')
+                field: ad_group_id
+      - name: account_id
+        description: Ad account that owns the ad.
+      - name: ad_name
+        description: Ad / creative name.
+      - name: ad_status
+        description: Upper-cased delivery status.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ACTIVE, PAUSED, ARCHIVED, DELETED]
+              config:
+                severity: warn
+      - name: updated_at
+        description: When the ad was last changed in Facebook.
+
+  - name: stg_facebook_ads__ad_groups
+    description: "Facebook ad groups, latest version per group. **Grain: one row per `ad_group_id`.**"
+    columns:
+      - name: ad_group_id
+        description: Facebook ad group id.
+        data_tests:
+          - unique
+          - not_null
+      - name: ad_group_name
+        description: Ad group name.
+      - name: updated_at
+        description: When the ad group was last changed.
+
+  - name: stg_facebook_ads__campaigns
+    description: "Facebook campaigns, latest version per campaign. **Grain: one row per `campaign_id`.**"
+    columns:
+      - name: campaign_id
+        description: Facebook campaign id.
+        data_tests:
+          - unique
+          - not_null
+      - name: campaign_name
+        description: Campaign name.
+      - name: updated_at
+        description: When the campaign was last changed.
+
+  - name: stg_facebook_ads__accounts
+    description: "Facebook ad accounts, latest version per account. **Grain: one row per `account_id`.**"
+    columns:
+      - name: account_id
+        description: Facebook ad account id.
+        data_tests:
+          - unique
+          - not_null
+      - name: account_name
+        description: Account name.
+      - name: currency_code
+        description: ISO currency of all spend reported for the account. Must have a rate in `fx_rates_to_eur`.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fx_rates_to_eur')
+                field: currency_code
+      - name: created_at
+        description: When the account was created.
+      - name: updated_at
+        description: When the account was last changed.

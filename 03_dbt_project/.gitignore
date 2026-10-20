@@ -1,0 +1,26 @@
+# uv / python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/package-lock.yml
+.user.yml
+
+# generated reports
+elementary_report.html
+edr_target/
+
+# secrets - never commit
+.env
+.env.*
+!.env.template
+*service-account*.json
+*credentials*.json

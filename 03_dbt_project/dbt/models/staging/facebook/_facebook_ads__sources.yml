@@ -1,0 +1,74 @@
+version: 2
+
+sources:
+  - name: facebook_ads
+    description: >
+      Raw Facebook Ads extracts, loaded as-is into Unity Catalog (bronze). Every column is a string
+      because bronze keeps what the platform sent; typing happens in staging. The extracts are
+      daily performance (`ad_stats`) plus one-row-per-entity dimension tables.
+    database: "{{ var('bronze_catalog') }}"
+    schema: facebook_ads
+    config:
+      enabled: true
+      loaded_at_field: _loaded_at     # added by the loader on every (re)load of a bronze table
+      meta:
+        owner: "@prantonia"
+      freshness:
+        warn_after:
+          count: 2
+          period: day
+    tables:
+      - name: ad_stats
+        description: >
+          Daily ad performance. One row per ad per day, in the currency of the owning account.
+          Source file: ads_stats.csv. `ad_impressions` and `ad_clicks` contain the literal text
+          'null' when the platform did not report a value.
+        columns:
+          - name: ad_id
+            description: Facebook ad id (13-18 digit numeric string).
+          - name: account_id
+            description: Facebook ad account id that owns the ad.
+          - name: ad_spend
+            description: Spend for the day in the account's currency.
+          - name: ad_impressions
+            description: Impressions as text; may be the string 'null'.
+          - name: ad_clicks
+            description: Clicks as text; may be the string 'null'.
+          - name: ad_date
+            description: Reporting date (YYYY-MM-DD).
+
+      - name: ads
+        description: "Ad dimension. One row per ad. Source file: new_ads_de_randomized.csv."
+        columns:
+          - name: ad_id
+            description: Facebook ad id.
+            data_tests:
+              - unique
+              - not_null
+
+      - name: ad_groups
+        description: "Ad group (ad set) dimension. One row per ad group. Source file: new_adgroup_de_randomized.csv."
+        columns:
+          - name: ad_group_id
+            description: Facebook ad group id.
+            data_tests:
+              - unique
+              - not_null
+
+      - name: campaigns
+        description: "Campaign dimension. One row per campaign. Source file: new_campaign_de_randomized.csv."
+        columns:
+          - name: campaign_id
+            description: Facebook campaign id.
+            data_tests:
+              - unique
+              - not_null
+
+      - name: accounts
+        description: "Ad account dimension. One row per account, carries the account currency. Source file: new_acccount_de_randomized.csv."
+        columns:
+          - name: account_id
+            description: Facebook ad account id.
+            data_tests:
+              - unique
+              - not_null

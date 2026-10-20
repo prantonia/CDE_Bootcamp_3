@@ -1,0 +1,46 @@
+[project]
+name = "marketing-platform"
+version = "1.0.0"
+description = "Unified Facebook + Snapchat marketing data platform (Google Drive -> Databricks -> dbt)"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    # Google Drive -> bronze ingestion. This is all the Databricks notebook installs
+    # (`%pip install ../..`), so the cluster's own databricks-sdk/pydantic/etc. are left alone.
+    "google-api-python-client>=2.130",
+    "google-auth>=2.30",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+# `uv run ingest-bronze` runs the idempotent Drive -> Databricks load (on a Databricks runtime).
+ingest-bronze = "marketing_ingest.cli:main"
+
+[dependency-groups]
+# Transformation tooling: installed by `uv sync` (laptop and CI), never by the Databricks notebook.
+transform = [
+    "dbt-core>=1.10.5,<2.0",
+    "dbt-databricks>=1.10,<2.0",
+    "elementary-data[databricks]>=0.19,<2.0",
+]
+# Local-only tooling. Installed with `uv sync --group dev`, never shipped to Databricks.
+dev = [
+    "sqlfluff>=3.0",
+    "sqlfluff-templater-dbt>=3.0",
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/marketing_ingest"]
+
+[tool.uv]
+package = true
+# `uv sync` installs both groups by default; CI skips dev with --no-group dev.
+default-groups = ["dev", "transform"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,80 @@
+# One profile, three targets (environments). Pick one with DBT_TARGET (default: dev).
+#
+#   target      who uses it                 auth                       where models land
+#   ----------  --------------------------  -------------------------  -------------------------------------------
+#   dev         a developer, laptop         personal access token      $DEV_CATALOG.$DEV_SCHEMA (dev_sandbox.dbt_<name>)
+#   ci          GitHub pull-request checks  service principal (OAuth)  ci_development.PR_<number> (single schema)
+#   production  GitHub main / schedule      service principal (OAuth)  silver_production.* / gold_production.*
+#
+# Only `dev` uses a personal token, and only for a developer's own sandbox. CI and production authenticate
+# as Databricks service principals (OAuth machine-to-machine), so no pipeline depends on an individual's
+# credentials. Catalog/schema routing for production is done by macros/generate_*_name.sql; dev and ci
+# write everything into one disposable schema.
+
+marketing_platform:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: databricks
+      host: "{{ env_var('DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+      token: "{{ env_var('DATABRICKS_PAT_TOKEN') }}"
+      catalog: "{{ env_var('DEV_CATALOG', 'dev_sandbox') }}"
+      schema: "{{ env_var('DEV_SCHEMA', 'dbt_dev') }}"
+      threads: 4
+
+    ci:
+      type: databricks
+      host: "{{ env_var('DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+      auth_type: oauth
+      client_id: "{{ env_var('DBX_ID_APPLICATION_ID') }}"
+      client_secret: "{{ env_var('DBX_SECRET') }}"
+      catalog: ci_development
+      schema: "{{ env_var('DEV_SCHEMA', 'PR_LOCAL') }}"
+      threads: 8
+
+    production:
+      type: databricks
+      host: "{{ env_var('DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+      auth_type: oauth
+      client_id: "{{ env_var('DBX_ID_APPLICATION_ID') }}"
+      client_secret: "{{ env_var('DBX_SECRET') }}"
+      catalog: silver_production
+      schema: staging
+      threads: 8
+
+# Used by the Elementary CLI (`edr report`) to read the observability tables that the
+# elementary dbt package writes to <silver catalog>.elementary.
+elementary:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: databricks
+      host: "{{ env_var('DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+      token: "{{ env_var('DATABRICKS_PAT_TOKEN') }}"
+      catalog: "{{ env_var('DEV_CATALOG', 'dev_sandbox') }}"
+      schema: "{{ env_var('DEV_SCHEMA', 'dbt_dev') }}"
+      threads: 4
+    ci:
+      type: databricks
+      host: "{{ env_var('DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+      auth_type: oauth
+      client_id: "{{ env_var('DBX_ID_APPLICATION_ID') }}"
+      client_secret: "{{ env_var('DBX_SECRET') }}"
+      catalog: ci_development
+      schema: "{{ env_var('DEV_SCHEMA', 'PR_LOCAL') }}"
+      threads: 4
+    production:
+      type: databricks
+      host: "{{ env_var('DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+      auth_type: oauth
+      client_id: "{{ env_var('DBX_ID_APPLICATION_ID') }}"
+      client_secret: "{{ env_var('DBX_SECRET') }}"
+      catalog: silver_production
+      schema: elementary
+      threads: 4

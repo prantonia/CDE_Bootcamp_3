@@ -1,0 +1,121 @@
+version: 2
+
+models:
+  - name: stg_snapchat_ads__ad_stats
+    description: >
+      Typed daily Snapchat ad performance. **Grain: one row per ad per day per country
+      (`ad_id`, `report_date`, `country_code`).** `ad_id` is Snapchat's `ad_detail_id`.
+      Spend is in `currency_code`. Clicks marked 'null' by the platform are NULL (unknown), not 0.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [ad_id, report_date, country_code]
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "clicks is null or impressions is null or clicks <= impressions"
+    columns:
+      - name: ad_id
+        description: Snapchat ad id (UUID).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_snapchat_ads__ads')
+                field: ad_id
+      - name: report_date
+        description: Date the performance relates to.
+        data_tests:
+          - not_null
+      - name: country_code
+        description: Upper-case ISO country code of the delivery breakdown.
+        data_tests:
+          - not_null
+      - name: currency_code
+        description: ISO currency of `spend`. Must have a rate in `fx_rates_to_eur`.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fx_rates_to_eur')
+                field: currency_code
+      - name: spend
+        description: Spend in `currency_code`. Never negative.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: impressions
+        description: Impressions served.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: clicks
+        description: Clicks. NULL when not reported.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+
+  - name: stg_snapchat_ads__ads
+    description: "Snapchat ads, latest version per ad. **Grain: one row per `ad_id`.** No status column exists in the source."
+    columns:
+      - name: ad_id
+        description: Snapchat ad id (UUID).
+        data_tests:
+          - unique
+          - not_null
+      - name: ad_group_id
+        description: >
+          Ad group the ad belongs to. About 12% of ads point to ad groups missing from the extract
+          (none of them have performance data), hence the warn-level severity.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_snapchat_ads__ad_groups')
+                field: ad_group_id
+              config:
+                severity: warn
+      - name: ad_name
+        description: Ad / creative name.
+      - name: updated_at
+        description: When the ad was last changed (`ad_detail_updated_at` in the source).
+
+  - name: stg_snapchat_ads__ad_groups
+    description: >
+      Snapchat ad groups reduced to the latest version. **Grain: one row per `ad_group_id`.**
+      The source holds several versions for some ad groups; keeping them all would duplicate fact rows.
+    columns:
+      - name: ad_group_id
+        description: Snapchat ad group id (UUID).
+        data_tests:
+          - unique
+          - not_null
+      - name: campaign_id
+        description: Campaign the ad group belongs to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_snapchat_ads__campaigns')
+                field: campaign_id
+      - name: ad_group_name
+        description: Ad group name.
+      - name: updated_at
+        description: When this version of the ad group was written.
+
+  - name: stg_snapchat_ads__campaigns
+    description: "Snapchat campaigns. **Grain: one row per `campaign_id`.**"
+    columns:
+      - name: campaign_id
+        description: Snapchat campaign id (UUID).
+        data_tests:
+          - unique
+          - not_null
+      - name: account_id
+        description: Snapchat ad account id (UUID). There is no account table in the extract.
+        data_tests:
+          - not_null
+      - name: campaign_name
+        description: Campaign name.

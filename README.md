@@ -23,6 +23,14 @@ CDE_Bootcamp_3/
 │   ├── etl_pipeline/                # etl.sh + raw / Transformed / Gold layers
 │   └── moving_files/                # move_files.sh + demo files
 │
+├── 03_dbt_project/                  # Marketing data platform: Google Drive -> Databricks -> dbt
+│   ├── README.md
+│   ├── docs/                        # engineering decisions, runbook, data dictionary, static dbt docs
+│   ├── src/ · config/ · databricks/ · dbt/ · tests/
+│   └── pyproject.toml / uv.lock
+│
+├── .github/workflows/               # CI/CD for 03_dbt_project (dbt CI, production deploy, cleanup)
+│
 └── README.md                        # this file
 ```
 
@@ -67,6 +75,22 @@ a cron job for daily scheduling, and the project README documenting how it was
 built. See the [project README](./02_linux_git_project/README.md) for the
 step-by-step walkthrough.
 
+### 03. Marketing Data Platform with Databricks & dbt
+
+**Folder:** [`03_dbt_project/`](./03_dbt_project/)
+
+A production-minded **marketing data platform** that unifies Facebook Ads and Snapchat Ads data. An idempotent
+Python loader moves the raw files from Google Drive into Databricks (bronze, in Unity Catalog); **dbt** turns them
+into a documented, tested, unified model (staging, intermediate and a wide daily performance fact with
+CTR / CPC / CPM reports) for analysts, BI tools and AI agents. **Elementary** monitors data quality, and
+**GitHub Actions** validates every pull request in a disposable schema and deploys `main` to production as a
+**Databricks service principal** (no personal access token). It uses three environments: development, CI and
+production, managed with **uv**.
+
+Start with the [project README](./03_dbt_project/README.md); the reasoning behind each design choice is in
+[`docs/DECISIONS.md`](./03_dbt_project/docs/DECISIONS.md), and
+[`docs/RUNBOOK.md`](./03_dbt_project/docs/RUNBOOK.md) walks through a run on a live workspace.
+
 ---
 
 ## About the bootcamp
@@ -74,7 +98,8 @@ step-by-step walkthrough.
 CoreDataEngineers is a data-engineering training programme. The work in this
 repository was produced as part of Bootcamp Cohort 3.0, covering foundational
 data-engineering skills - data-pipeline design, the Linux operating system, Bash
-scripting, and version control with Git.
+scripting, version control with Git, and building a tested, documented analytics
+platform with Databricks and dbt.
 
 As more assignments are completed, each will be added here as a new numbered
 folder with its own README, and listed under **Projects** above.

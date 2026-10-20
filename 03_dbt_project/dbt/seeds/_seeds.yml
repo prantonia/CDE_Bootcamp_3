@@ -1,0 +1,25 @@
+version: 2
+
+seeds:
+  - name: fx_rates_to_eur
+    description: >
+      Fixed currency conversion rates to EUR, the reporting currency. Used to compute `spend_eur`
+      so Facebook (EUR and USD accounts) and Snapchat (EUR) spend can be compared and summed.
+      The USD rate is a PLACEHOLDER: replace it with the finance-approved rate (or swap this seed
+      for a dated rates table and join on report_date) before treating spend_eur as official.
+    columns:
+      - name: currency_code
+        description: ISO 4217 currency code.
+        data_tests:
+          - unique
+          - not_null
+      - name: rate_to_eur
+        description: Multiply an amount in `currency_code` by this rate to get EUR.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
+      - name: rate_note
+        description: Where the rate comes from / caveats.

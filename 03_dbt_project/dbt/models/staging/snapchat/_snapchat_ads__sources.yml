@@ -1,0 +1,72 @@
+version: 2
+
+sources:
+  - name: snapchat_ads
+    description: >
+      Raw Snapchat Ads extracts, loaded as-is into Unity Catalog (bronze), all columns as strings.
+      Snapchat names things differently from Facebook (`ad_detail_id` for the ad id, `ad_detail_updated_at`
+      for the ad timestamp) and has no account table and no ad status.
+    database: "{{ var('bronze_catalog') }}"
+    schema: snapchat_ads
+    config:
+      enabled: true
+      loaded_at_field: _loaded_at     # added by the loader on every (re)load of a bronze table
+      meta:
+        owner: "@prantonia"
+      freshness:
+        warn_after:
+          count: 2
+          period: day
+    tables:
+      - name: ad_stats
+        description: >
+          Daily ad performance. One row per ad per day per country (ad_detail_id, ad_date, ad_country).
+          Source file: snapchat_ads_stats.csv. `ad_clicks` contains the literal text 'null' when not reported.
+          Spend is in plain currency units (not micro-currency).
+        columns:
+          - name: ad_detail_id
+            description: Snapchat ad id (UUID). Joins to ad_history `ad_id`.
+          - name: ad_currency_code
+            description: ISO currency code of the spend value.
+          - name: ad_country
+            description: Lower-case ISO country code the delivery is broken down by.
+          - name: ad_spend
+            description: Spend for the day/country in `ad_currency_code`.
+          - name: ad_impressions
+            description: Impressions.
+          - name: ad_clicks
+            description: Clicks as text; may be the string 'null'.
+          - name: ad_date
+            description: Reporting date (YYYY-MM-DD).
+          - name: data_src
+            description: Constant 'snapchat_ads'.
+
+      - name: ads
+        description: "Ad history. One row per ad. Source file: snapchat_ads_ad_history_new_ad_names.csv."
+        columns:
+          - name: ad_id
+            description: Snapchat ad id (UUID).
+            data_tests:
+              - unique
+              - not_null
+
+      - name: ad_groups
+        description: >
+          Ad group history. Contains more than one version of some ad groups (same ad_group_id, different
+          `ad_group_updated_at`), so it must be reduced to the latest version before joining.
+          Source file: snapchat_ads_adgroup_history_new_ad_group_names.csv.
+        columns:
+          - name: _surrogate_key
+            description: Source-generated hash, unique per ad group version.
+            data_tests:
+              - unique
+              - not_null
+
+      - name: campaigns
+        description: "Campaign history. One row per campaign, links campaigns to an account id. Source file: snapchat_ads_campaign_history_new_campaign_names.csv."
+        columns:
+          - name: campaign_id
+            description: Snapchat campaign id (UUID).
+            data_tests:
+              - unique
+              - not_null

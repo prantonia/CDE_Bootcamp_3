@@ -1,0 +1,127 @@
+# Reusable dbt job for 03_dbt_project (uv-managed). Called by dbt-ci.yml and dbt-deploy-production.yml.
+# Both environments run identical steps and differ only by inputs.
+name: dbt (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      target: { description: "ci | production", required: true, type: string }
+      environment: { description: "GitHub environment holding this target's SP secrets", required: true, type: string }
+      mode: { description: "slim | full", type: string, default: full }
+      full_refresh: { type: boolean, default: false }
+      schema: { description: "schema for the ci target (PR_<n>)", type: string, default: "" }
+      publish_manifest: { type: boolean, default: false }
+      run_elementary_report: { type: boolean, default: true }
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  dbt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: 03_dbt_project
+    env:
+      DBT_TARGET: ${{ inputs.target }}
+      DBT_PROJECT_DIR: dbt
+      DBT_PROFILES_DIR: dbt
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
+      DBX_ID_APPLICATION_ID: ${{ secrets.DBX_ID_APPLICATION_ID }}
+      DBX_SECRET: ${{ secrets.DBX_SECRET }}
+      DEV_SCHEMA: ${{ inputs.schema }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: 03_dbt_project/uv.lock
+
+      - name: Install the project (locked)
+        run: uv sync --frozen --no-group dev
+
+      - name: Install dbt packages
+        run: uv run dbt deps
+
+      - name: Check connection
+        run: uv run dbt debug
+
+      - name: Reset the pull-request schema
+        if: inputs.target == 'ci'
+        run: |
+          uv run dbt run-operation drop_ci_schema --args "{schema_name: $DEV_SCHEMA}"
+
+      - name: Download production state (manifest)
+        id: state
+        if: inputs.mode == 'slim'
+        continue-on-error: true
+        run: |
+          run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow dbt-deploy-production.yml \
+                   --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          if [ -n "$run_id" ] && gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name dbt-prod-manifest --dir prod-state; then
+            echo "has_state=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_state=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Initialise Elementary tables
+        run: uv run dbt run --select elementary
+
+      - name: dbt build
+        run: |
+          FLAGS=""
+          if [ "${{ inputs.full_refresh }}" = "true" ]; then FLAGS="$FLAGS --full-refresh"; fi
+          if [ "${{ inputs.mode }}" = "slim" ] && [ "${{ steps.state.outputs.has_state }}" = "true" ]; then
+            uv run dbt build --select "state:modified+" --exclude "package:elementary" \
+              --defer --state prod-state --fail-fast $FLAGS
+          else
+            uv run dbt build --exclude "package:elementary" $FLAGS
+          fi
+
+      - name: Source freshness
+        if: inputs.target == 'production'
+        continue-on-error: true
+        run: uv run dbt source freshness
+
+      - name: Generate dbt docs
+        if: always()
+        continue-on-error: true
+        run: uv run dbt docs generate --static
+
+      - name: Upload dbt docs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs-${{ inputs.target }}
+          path: 03_dbt_project/dbt/target/static_index.html
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Upload production manifest
+        if: success() && inputs.publish_manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-prod-manifest
+          path: 03_dbt_project/dbt/target/manifest.json
+          retention-days: 90
+
+      - name: Elementary report
+        if: always() && inputs.run_elementary_report
+        continue-on-error: true
+        run: uv run edr report --profiles-dir dbt --profile-target "$DBT_TARGET" --file-path elementary_report.html
+
+      - name: Upload Elementary report
+        if: always() && inputs.run_elementary_report
+        uses: actions/upload-artifact@v4
+        with:
+          name: elementary-report-${{ inputs.target }}
+          path: 03_dbt_project/elementary_report.html
+          retention-days: 90
+          if-no-files-found: ignore

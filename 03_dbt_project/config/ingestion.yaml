@@ -1,0 +1,28 @@
+# Ingestion config - the only place source identifiers and the file->table map live.
+# For public "Anyone with the link" folders, auth_mode: api_key (a Drive-API-restricted key in the
+# secret scope below). For private folders, auth_mode: service_account.
+# To keep these out of version control, put this same YAML/JSON in a Databricks secret
+# (scope `gdrive`, key `ingestion_config`) and run with config_source="secret".
+
+catalog: bronze_production
+volume_root: /Volumes/bronze_production/landing/raw_files
+meta_schema: _meta
+manifest_table: ingestion_manifest
+
+auth_mode: api_key          # api_key | service_account
+secret_scope: gdrive        # Databricks secret scope holding `api_key` or `service_account_json`
+
+folders:
+  facebook: https://drive.google.com/drive/folders/1DqOgxbI0K1xCjnfU492wHPRiqnMmD4I9
+  snapchat: https://drive.google.com/drive/folders/1yKMPfk4UkjEL1RgcqkWxfqXzF4FRslpe
+
+files:
+  - { source: facebook, file_name: ads_stats.csv,                                              schema: facebook_ads, table: ad_stats }
+  - { source: facebook, file_name: new_acccount_de_randomized.csv,                             schema: facebook_ads, table: accounts }
+  - { source: facebook, file_name: new_adgroup_de_randomized.csv,                              schema: facebook_ads, table: ad_groups }
+  - { source: facebook, file_name: new_ads_de_randomized.csv,                                  schema: facebook_ads, table: ads }
+  - { source: facebook, file_name: new_campaign_de_randomized.csv,                             schema: facebook_ads, table: campaigns }
+  - { source: snapchat, file_name: snapchat_ads_stats.csv,                                     schema: snapchat_ads, table: ad_stats }
+  - { source: snapchat, file_name: snapchat_ads_ad_history_new_ad_names.csv,                   schema: snapchat_ads, table: ads }
+  - { source: snapchat, file_name: snapchat_ads_adgroup_history_new_ad_group_names.csv,        schema: snapchat_ads, table: ad_groups }
+  - { source: snapchat, file_name: snapchat_ads_campaign_history_new_campaign_names.csv,       schema: snapchat_ads, table: campaigns }

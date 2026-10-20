@@ -1,0 +1,306 @@
+version: 2
+
+models:
+  - name: fct_marketing_ad_performance_daily
+    description: >
+      The unified marketing fact: Facebook and Snapchat advertising performance in one consistent shape.
+      **Grain: one row per platform x ad x report date x country** (`performance_key`).
+      Facebook has no country breakdown, so its rows carry country `UNSPECIFIED`.
+      Descriptive names (campaign, ad group, ad, account) are denormalized onto the row so analysts and
+      AI agents can answer most questions without joins.
+      Ratio metrics (CTR, CPC, CPM) are deliberately NOT stored per row because they cannot be averaged;
+      use `rpt_marketing_campaign_daily` / `rpt_marketing_platform_monthly`, or recompute from sums.
+      Incremental: new days are appended and the trailing `incremental_lookback_days` days are re-merged
+      to pick up platform restatements.
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "clicks is null or impressions is null or clicks <= impressions"
+      - elementary.volume_anomalies:
+          config:
+            severity: warn
+      - elementary.schema_changes:
+          config:
+            severity: warn
+    columns:
+      - name: performance_key
+        description: Primary key. Surrogate hash of platform + source_ad_id + report_date + country_code.
+        data_tests:
+          - unique
+          - not_null
+      - name: ad_key
+        description: Surrogate key of platform + source_ad_id. Joins to `dim_marketing_ads`.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_marketing_ads')
+                field: ad_key
+      - name: campaign_key
+        description: Surrogate key of platform + source_campaign_id.
+        data_tests:
+          - not_null
+      - name: platform
+        description: Advertising platform the row comes from.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [facebook, snapchat]
+      - name: report_date
+        description: Calendar date the performance relates to.
+        data_tests:
+          - not_null
+      - name: country_code
+        description: Upper-case ISO country code of the delivery breakdown; `UNSPECIFIED` where the platform gives none (all Facebook rows).
+        data_tests:
+          - not_null
+      - name: source_ad_id
+        description: The platform's own ad id (string; Facebook ids are numeric, Snapchat ids are UUIDs).
+        data_tests:
+          - not_null
+      - name: ad_name
+        description: Ad / creative name.
+      - name: ad_status
+        description: Delivery status (ACTIVE, PAUSED, ARCHIVED, DELETED). NULL for Snapchat, which exposes no status.
+      - name: source_ad_group_id
+        description: The platform's ad group (ad set) id.
+      - name: ad_group_name
+        description: Ad group name.
+      - name: source_campaign_id
+        description: The platform's own campaign id.
+      - name: campaign_name
+        description: Campaign name as used on the platform.
+      - name: source_account_id
+        description: The platform's ad account id.
+      - name: account_name
+        description: Ad account name. NULL for Snapchat (no account table in the extract).
+      - name: currency_code
+        description: ISO currency of `spend`.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fx_rates_to_eur')
+                field: currency_code
+      - name: spend
+        description: "{{ doc('spend') }}"
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: spend_eur
+        description: "{{ doc('spend_eur') }}"
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: impressions
+        description: "{{ doc('impressions') }}"
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: clicks
+        description: "{{ doc('clicks') }}"
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+
+  - name: dim_marketing_ads
+    description: >
+      Ad dimension. **Grain: one row per platform x ad (`ad_key`).** Descriptive attributes of every ad that
+      has reported performance, plus the first/last date it reported and how many days it reported.
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "first_report_date <= last_report_date"
+    columns:
+      - name: ad_key
+        description: Primary key. Surrogate hash of platform + source_ad_id.
+        data_tests:
+          - unique
+          - not_null
+      - name: platform
+        description: Advertising platform.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [facebook, snapchat]
+      - name: source_ad_id
+        description: The platform's own ad id.
+        data_tests:
+          - not_null
+      - name: ad_name
+        description: Ad / creative name.
+      - name: ad_status
+        description: Delivery status. NULL for Snapchat.
+      - name: source_ad_group_id
+        description: The platform's ad group id.
+      - name: ad_group_name
+        description: Ad group name.
+      - name: campaign_key
+        description: Surrogate key of platform + source_campaign_id.
+        data_tests:
+          - not_null
+      - name: source_campaign_id
+        description: The platform's own campaign id.
+      - name: campaign_name
+        description: Campaign name.
+      - name: source_account_id
+        description: The platform's ad account id.
+      - name: account_name
+        description: Ad account name. NULL for Snapchat.
+      - name: currency_code
+        description: Currency of the account the ad bills in.
+      - name: first_report_date
+        description: First date the ad reported performance.
+      - name: last_report_date
+        description: Last date the ad reported performance.
+      - name: reported_days
+        description: Number of distinct dates the ad reported performance.
+
+  - name: rpt_marketing_campaign_daily
+    description: >
+      Campaign performance by day. **Grain: one row per report date x platform x campaign x currency.**
+      Use this for "spend / impressions / clicks by campaign", "top campaigns" and "performance over time".
+      CTR, CPC and CPM are computed from sums over rows where inputs were reported, and are NULL (not 0)
+      when the denominator is zero. The `*_where_*` columns let you re-aggregate without averaging ratios.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [report_date, platform, campaign_key, currency_code]
+    columns:
+      - name: report_date
+        description: Calendar date.
+        data_tests:
+          - not_null
+      - name: platform
+        description: Advertising platform.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [facebook, snapchat]
+      - name: campaign_key
+        description: Surrogate key of platform + campaign id.
+        data_tests:
+          - not_null
+      - name: source_campaign_id
+        description: The platform's own campaign id.
+      - name: campaign_name
+        description: Campaign name.
+      - name: currency_code
+        description: Currency of `spend` and of `cpc` / `cpm`.
+        data_tests:
+          - not_null
+      - name: active_ads
+        description: Number of distinct ads that reported performance that day.
+      - name: spend
+        description: "{{ doc('spend') }}"
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: spend_eur
+        description: "{{ doc('spend_eur') }}"
+      - name: impressions
+        description: "{{ doc('impressions') }}"
+      - name: clicks
+        description: "{{ doc('clicks') }}"
+      - name: spend_where_clicks_reported
+        description: "{{ doc('building_blocks') }}"
+      - name: spend_eur_where_clicks_reported
+        description: "{{ doc('building_blocks') }}"
+      - name: spend_where_impressions_reported
+        description: "{{ doc('building_blocks') }}"
+      - name: spend_eur_where_impressions_reported
+        description: "{{ doc('building_blocks') }}"
+      - name: clicks_where_both_reported
+        description: "{{ doc('building_blocks') }}"
+      - name: impressions_where_both_reported
+        description: "{{ doc('building_blocks') }}"
+      - name: ctr
+        description: "{{ doc('ctr') }}"
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+      - name: cpc
+        description: "{{ doc('cpc') }}"
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: cpc_eur
+        description: "{{ doc('cpc_eur') }}"
+      - name: cpm
+        description: "{{ doc('cpm') }}"
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: cpm_eur
+        description: "{{ doc('cpm_eur') }}"
+
+  - name: rpt_marketing_platform_monthly
+    description: >
+      Platform comparison by month. **Grain: one row per calendar month x platform.**
+      Money is in EUR only (platforms bill in different currencies). Use this for
+      "compare Facebook and Snapchat spend", "which platform got more clicks" and month-over-month trends.
+      Note: Snapchat sample data covers 2024 and Facebook sample data covers 2025, so the two platforms
+      do not share a month in the sample data.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [report_month, platform]
+    columns:
+      - name: report_month
+        description: First day of the calendar month.
+        data_tests:
+          - not_null
+      - name: platform
+        description: Advertising platform.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [facebook, snapchat]
+      - name: active_campaigns
+        description: Number of distinct campaigns that reported performance in the month.
+      - name: active_ads
+        description: Number of distinct ads that reported performance in the month.
+      - name: spend_eur
+        description: "{{ doc('spend_eur') }}"
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: impressions
+        description: "{{ doc('impressions') }}"
+      - name: clicks
+        description: "{{ doc('clicks') }}"
+      - name: spend_eur_where_clicks_reported
+        description: "{{ doc('building_blocks') }}"
+      - name: spend_eur_where_impressions_reported
+        description: "{{ doc('building_blocks') }}"
+      - name: clicks_where_both_reported
+        description: "{{ doc('building_blocks') }}"
+      - name: impressions_where_both_reported
+        description: "{{ doc('building_blocks') }}"
+      - name: ctr
+        description: "{{ doc('ctr') }}"
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+      - name: cpc_eur
+        description: "{{ doc('cpc_eur') }}"
+      - name: cpm_eur
+        description: "{{ doc('cpm_eur') }}"
